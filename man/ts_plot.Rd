@@ -2,7 +2,6 @@
 % Please edit documentation in R/ts_plot.R
 \name{ts_plot}
 \alias{ts_plot}
-\alias{ts.plot_ly}
 \title{Plotting Time Series Objects}
 \usage{
 ts_plot(ts.obj, line.mode = "lines", width = 2, dash = NULL,
@@ -10,11 +9,12 @@ ts_plot(ts.obj, line.mode = "lines", width = 2, dash = NULL,
   Ytitle = NULL, title = NULL, Xgrid = FALSE, Ygrid = FALSE)
 }
 \arguments{
-\item{ts.obj}{A univariate or multivariate time series object of class "ts", "mts", "zoo" or "xts"}
+\item{ts.obj}{A univariate or multivariate time series object of class "ts", "mts", "zoo", "xts", or any data frame object with 
+a minimum of one numeric column and either a Date or POSIXt class column}
 
 \item{line.mode}{A plotly argument, define the plot type, c("lines", "lines+markers", "markers")}
 
-\item{width}{The plot width, default is set to 1 (an integer)}
+\item{width}{An Integer, define the plot width, default is set to 2}
 
 \item{dash}{A plotly argument, define the line style, c(NULL, "dot", "dash")}
 
@@ -24,11 +24,11 @@ ts_plot(ts.obj, line.mode = "lines", width = 2, dash = NULL,
 
 \item{type}{Applicable for multiple time series object, plot on a separate plot or all together c("single, "multiple)}
 
-\item{Xtitle}{Set the X axis title, default set to NULL}
+\item{Xtitle}{A character, set the X axis title, default set to NULL}
 
-\item{Ytitle}{Set the Y axis title, default set to NULL}
+\item{Ytitle}{A character, set the Y axis title, default set to NULL}
 
-\item{title}{Set the plot title, default set to NULL}
+\item{title}{A character, set the plot title, default set to NULL}
 
 \item{Xgrid}{Logic,show the X axis grid if set to TRUE}
 

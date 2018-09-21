@@ -2,60 +2,70 @@
 TSstudio
 ========
 
-The TSstudio package provides a set of interactive visualization tools for time series analysis.
-
-Overview
---------
-
-The TSstudio package provides a set of interactive visualization tools for time series analysis supporting ts, mts, zoo and xts objects. That includes several visualization functions such as forecasting model performance (forecasted vs. actual), time series interactive plots (single and multiple series) and seasonality plots utilizing the visualization applications of the [Plotly](https://plot.ly/r/) package. First version available on CRAN or Github.
-
-![The TSstudio package](https://github.com/RamiKrispin/TSstudio/blob/master/vignettes/gif/TSstudio.gif)
+The **TSstudio** package provides a set of functions for time series analysis. That includes interactive data visualization tools based on the [plotly](https://CRAN.R-project.org/package=plotly) package engine, supporting multiple time series objects such as `ts`, `xts`, and `zoo`. In addition, the package provides a set of utility functions for preprocessing time series data, and as well backtesting applications for forecasting models from the [forecast](https://CRAN.R-project.org/package=forecast), [forecastHybrid](https://CRAN.R-project.org/package=forecastHybrid) and [bsts](https://CRAN.R-project.org/package=bsts) packages. 
 
 Installation
 ------------
 
 Install the stable version from [CRAN](https://CRAN.R-project.org/package=TSstudio):
+
 ``` r
 install.packages("TSstudio")
 ```
 
 or install the development version from [Github](https://github.com/RamiKrispin/TSstudio):
+
 ``` r
 # install.packages("devtools")
 devtools::install_github("RamiKrispin/TSstudio")
 ```
 
-Package Road Map
-----------------
 
-The TSstudio package provides a set of tools for time series descriptive analysis and performance measurement of forecasting. Currently first version (0.1.0) is available on CRAN and the version (0.1.1) is schedule for submission to CRAN on March. While working on the next version, some of its functions are already available on the development version in Github (0.1.0.9000).
+Usage
+-----
+``` r
+library(TSstudio)
+data(USgas)
 
-Below is the road map plan for Q1, where some of the functions are already available on the [CRAN] version or the development version on [Github] and the rest will be available on [ver. 0.1.1] hopefully by March 18: 
+# Ploting time series object
+ts_plot(USgas)
 
-* Seasonal plots of time series object, in order to identity seasonal pattern that includes:
-    + Plot a series on a range of a full cycle (i.e. by full year) [CRAN + Github]
-    + Plot a series over time by units of the cycle (i.e. plot separately each month over a time) [Github]
-    + Polar plot by cycle [Github]
-    + Box plot by cycle units (i.e. by months, quarters, etc.) [Github]
+# Seasonal plot
+ts_seasonal(USgas, type = "all")
 
-* Correlation analysis plots:
-    + ACF and PACF plots [CRAN + Github]
-    + Lags plot [Github]
+# Lags plot
+ts_lags(USgas, lags = 1:12)
 
-* Forecasting tools:
-    + Performance plot of the forecasted and fitted values vs. the actuals [CRAN + Github]
-    + Split function for training and testing partitions [Github]
-    + Plot of the forecasted object with confidence intervals [ver. 0.1.1]  
+# Seasonal lags plot
+ts_lags(USgas, lags = c(12, 24, 36, 48))
 
-* Utility functions:
-    + Decompose plots [Github]
-    + Converting xts and zoo objects to ts object [Github]
-    + Box-Cox transformation plots using different parameters [ver. 0.1.1]
-    + Diagnostic dashboard – quick view of the series characteristics [ver. 0.1.1] 
+# Heatmap plot
+ts_heatmap(USgas)
+
+# Forecasting applications
+# Setting training and testing partitions
+USgas_s <- ts_split(ts.obj = USgas, sample.out = 12)
+train <- USgas_s$train
+test <- USgas_s$test
+
+# Forecasting with auto.arima
+library(forecast)
+md <- auto.arima(train)
+fc <- forecast(md, h = 12)
+
+# Plotting actual vs. fitted and forecasted
+test_forecast(actual = USgas, forecast.obj = fc, test = test)
+
+# Plotting the forecast 
+plot_forecast(fc)
+
+# Forecasting with backtesting 
+USgas_backtesting <- ts_backtesting(USgas, 
+                                    models = "abehntw", 
+                                    periods = 6, 
+                                    error = "RMSE", 
+                                    window_size = 12, 
+                                    h = 12)
 
 
-
-Examples
---------
-
-Interactive examples can be found [here](http://rpubs.com/ramkrisp/TSstudio)
+```

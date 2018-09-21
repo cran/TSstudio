@@ -1,154 +1,124 @@
 #'  Time Series Lag Visualization
 #' @export
-#' @param ts.obj A univariate time series object of a class "ts", "zoo" or "xts" (support only series with either monthly or quarterly frequency)
-#' @param lag.max An integer, number of lags to plot
+#' @param ts.obj A univariate time series object of a class "ts", "zoo" or "xts" 
+#' @param lags An integer, set the lags range, by default will plot the first 12 lags
 #' @param Xshare Plotly parameter, should the x-axis be shared amongst the subplots?
 #' @param Yshare Plotly parameter, should the y-axis be shared amongst the subplots?
-#' @param Xtitle Plotly parameter, should x-axis titles be retained?
-#' @param Ytitle Plotly parameter, should y-axis titles be retained?
 #' @param margin Plotly parameter, either a single value or four values (all between 0 and 1). 
 #' If four values are provided, the first is used as the left margin, 
 #' the second is used as the right margin, the third is used as the top margin, 
 #' and the fourth is used as the bottom margin. 
 #' If a single value is provided, it will be used as all four margins.
-#' @param n_row An integer, define the number of plots per row
+#' @param n_plots An integer, define the number of plots per row
 #' @description Visualization of series with its lags, 
 #' can be used to identify a correlation between the series and it lags
 #' @examples
 #' data(USgas)
 #' 
+#' # Plot the first 12 lags (default)
 #' ts_lags(USgas) 
+#' 
+#' # Plot the seasonal lags for the first 4 years (hence, lag 12, 24, 36, 48)
+#' ts_lags(USgas, lags = c(12, 24, 36, 48))
+#' 
+#' # Setting the margin between the plot
+#' ts_lags(USgas, lags = c(12, 24, 36, 48), margin = 0.01)
 
-ts_lags <- function(ts.obj, lag.max = 12, Xtitle = FALSE, Ytitle = TRUE, margin = 0.02, 
-                    Xshare = TRUE, Yshare = TRUE, n_row = 3){
-`%>%` <- magrittr::`%>%`
-df <- df_wide <- p <- obj.name <- lag <- lag_plots <- NULL
-
-obj.name <- base::deparse(base::substitute(ts.obj))
-# --------------Error handling --------------
-if(!is.numeric(lag.max)){
-  warning("The 'lag.max' parameter is not valid, using the defualt setting (lag.max = 12)")
-  lag.max <- 12
-} else if(lag.max == 0){
-  warning("The 'lag.max' parameter is not valid, using the defualt setting (lag.max = 12)")
-  lag.max <- 12
-} else if(round(lag.max) != lag.max){
-  warning("The 'lag.max' parameter is not valid, using the defualt setting (lag.max = 12)")
-  lag.max <- 12
-}
-
-if(!is.numeric(margin)){
-  warning("The 'margin' parameter is not valid, using the defualt setting (margin = 0.2)")
-  margin <- 0.2
-}
-
-if(!is.logical(Xtitle)){
-  warning("The 'Xtitle' parameter is not valid, please use only boolean operators.",
-" Using the defualt setting setting (Xtitle = FALSE")
-  Xtitle <- FALSE
-}
-
-if(!is.logical(Ytitle)){
-  warning("The 'Ytitle' parameter is not valid, please use only boolean operators.",
-          " Using the defualt setting setting (Ytitle = TRUE")
-  Ytitle <- TRUE
-}
-
-if(!is.logical(Xshare)){
-  warning("The 'Xshare' parameter is not valid, please use only boolean operators.",
-          " Using the defualt setting setting (Xshare = TRUE")
-  Xshare <- TRUE
-}
-
-if(!is.logical(Yshare)){
-  warning("The 'Yshare' parameter is not valid, please use only boolean operators.",
-          " Using the defualt setting setting (Yshare = TRUE")
-  Yshare <- TRUE
-}
-
-# -------------- Error handling and creating the data frame --------------
-if (stats::is.ts(ts.obj)) {
-  if (stats::is.mts(ts.obj)) {
-    warning("The 'ts.obj' has multiple columns, only the first column will be plot")
-    ts.obj <- ts.obj[, 1]
+ts_lags <- function(ts.obj, lags = 1:12, margin = 0.02, 
+                    Xshare = TRUE, Yshare = TRUE, n_plots = 3){
+  `%>%` <- magrittr::`%>%`
+  df <- df_wide <- p <- obj.name <- lag <- lag_plots <- time <- NULL
+  
+  obj.name <- base::deparse(base::substitute(ts.obj))
+  # --------------Error handling --------------
+  
+  
+  if(!is.numeric(lags)){
+    warning("The 'lags' parameter is not valid, using the defualt setting (lags = 1:12)")
+    lags <- 1:12
+  } else if(base::any(lags <= 0) ){
+    warning("The 'lags' parameter is not valid, using the defualt setting (lags = 1:12)")
+    lags <- 1:12
+  } else if(!all(base::round(lags) == lags)){
+    stop("Some of the inputs of the 'lags' argument are not integer type")
   }
-  df <- base::data.frame(dec_left = floor(stats::time(ts.obj)), 
-                         dec_right = stats::cycle(ts.obj), value = base::as.numeric(ts.obj))
-  if(!stats::frequency(ts.obj) %in% c(4, 12)){
-    stop("The frequency of the series is invalid, ",
-         "the function support only 'monthly' or 'quarterly' frequencies")
+  
+  
+  if(!is.numeric(margin)){
+    warning("The 'margin' parameter is not valid, using the defualt setting (margin = 0.2)")
+    margin <- 0.2
   }
-} else if (xts::is.xts(ts.obj) | zoo::is.zoo(ts.obj)) {
-  if (!is.null(base::dim(ts.obj))) {
-    if (base::dim(ts.obj)[2] > 1) {
+  
+  
+  if(!is.logical(Xshare)){
+    warning("The 'Xshare' parameter is not valid, please use only boolean operators.",
+            " Using the defualt setting setting (Xshare = TRUE")
+    Xshare <- TRUE
+  }
+  
+  if(!is.logical(Yshare)){
+    warning("The 'Yshare' parameter is not valid, please use only boolean operators.",
+            " Using the defualt setting setting (Yshare = TRUE")
+    Yshare <- TRUE
+  }
+  
+  # -------------- Error handling and creating the data frame --------------
+  if (stats::is.ts(ts.obj)) {
+    if (stats::is.mts(ts.obj)) {
       warning("The 'ts.obj' has multiple columns, only the first column will be plot")
       ts.obj <- ts.obj[, 1]
     }
+    
+    df <- base::data.frame(time = stats::time(ts.obj), y = base::as.numeric(ts.obj)) %>%
+      dplyr::arrange(time)
+    
+  } else if (xts::is.xts(ts.obj) | zoo::is.zoo(ts.obj)) {
+    if (!is.null(base::dim(ts.obj))) {
+      if (base::dim(ts.obj)[2] > 1) {
+        warning("The 'ts.obj' has multiple columns, only the first column will be plot")
+        ts.obj <- ts.obj[, 1]
+      }
+    }
+    df <- base::data.frame(time = zoo::index(ts.obj), y = base::as.numeric(ts.obj)) %>%
+      dplyr::arrange(time)
+  } else {
+    stop("The input object is not valid (must be 'ts', 'xts', or 'zoo')")
   }
-  freq <- xts::periodicity(ts.obj)[[6]]
-  if (freq == "quarterly") {
-    df <- base::data.frame(dec_left = lubridate::year(ts.obj), 
-                           dec_right = lubridate::quarter(ts.obj), 
-                           value = as.numeric(ts.obj))
-  } else if (freq == "monthly") {
-    df <- base::data.frame(dec_left = lubridate::year(ts.obj), 
-                           dec_right = lubridate::month(ts.obj), 
-                           value = as.numeric(ts.obj))
-    # } else if (freq == "weekly") {
-    #   df <- data.frame(dec_left = lubridate::year(ts.obj), 
-    #                    dec_right = lubridate::week(ts.obj), value = as.numeric(ts.obj))
-    # } else if (freq == "daily") {
-    #   df <- data.frame(dec_left = lubridate::month(ts.obj), 
-    #                    dec_right = lubridate::day(ts.obj), value = as.numeric(ts.obj))
-  } else if (!freq %in% c("monthly", "quarterly")) {
-    stop("The frequency of the series is invalid,",
-         "the function support only 'monthly' or 'quarterly' frequencies")
-  }
+  
+  
+  p_list <- lapply(base::seq_along(lags), function(i){
+    plotly::plot_ly(x = df$y %>% dplyr::lag(lags[i]), 
+                    y = df$y,
+                    type = "scatter",
+                    mode = "markers") %>%
+      plotly::layout(xaxis = list(title = "",
+                                  range = c( base::min(stats::na.omit(df$y)),  
+                                             base::max(stats::na.omit(df$y)))),
+                     yaxis = list(range = c( base::min(stats::na.omit(df$y)),  
+                                             base::max(stats::na.omit(df$y)))),
+                     
+                     annotations = list(text = paste("Lag", lags[i], sep = " "), 
+                                        xref = "paper", yref = "paper", yanchor = "bottom", 
+                                        xanchor = "center", align = "center", 
+                                        x = 0.5, y = 0.9, showarrow = FALSE)
+      )
+  })
+  
+  p <- base::suppressWarnings(plotly::subplot(p_list, nrows = ceiling(length(p_list) / n_plots), 
+                       margin = margin, 
+                       shareX = Xshare, shareY = Yshare) %>%
+    plotly::layout(title = paste(obj.name, "- Series (Y axis) vs. Lags (X axis)", sep = " ")) %>%
+    plotly::hide_legend())
+  
+  
+  
+  # -------------- End --------------
+  return(p)
   
 }
 
-df <- df[base::order(df$dec_left, df$dec_right),]
-
-# -------------- Creating the plot --------------
-for(g in 1:lag.max){
-  if(g == 1){
-    lag <- c(NA, df$value[- nrow(df)]) 
-  } else {
-    lag <- c(NA,lag[-nrow(df)])
-  }
-  lag_plots[[g]] <- plotly::plot_ly(x = lag, 
-                            y = df$value, 
-                            type = "scatter",
-                            mode = "markers",
-                            name = paste("Lag", g, sep = " ")) %>%
-    plotly::layout(xaxis = list(title = paste("Lag", g, sep = " "),
-                        range = c( base::min(stats::na.omit(as.numeric(lag))),  
-                                   base::max(stats::na.omit(as.numeric(lag))))),
-           yaxis = list(title = paste("Series", sep = ""),
-                        range = c( base::min(stats::na.omit(as.numeric(df$value))),  
-                                   base::max(stats::na.omit(as.numeric(df$value))))),
-           title = paste("Series vs Lags", sep = " "),
-           annotations = list(text = paste("Lag", g, sep = " "), 
-                              xref = "paper", yref = "paper", yanchor = "bottom", 
-                              xanchor = "center", align = "center", 
-                              x = 0.5, y = 0.9, showarrow = FALSE)
-    )
-}
-
-p <- plotly::subplot(lag_plots, 
-              titleX = Xtitle, titleY = Ytitle, margin = margin, 
-              shareX = Xshare, shareY = Yshare,
-              nrows = ceiling(length(lag_plots) / n_row))%>% 
-  plotly::hide_legend()
-
-# -------------- End --------------
-return(p)
-
-}
-
 #'  A Visualization Function of the ACF Estimation
-#' @export acf_ly ts_acf
-#' @aliases acf_ly
+#' @export ts_acf
 #' @param ts.obj a univariate or multivariate time series object of class "ts", "mts", "zoo" or "xts"
 #' @param lag.max maximum lag at which to calculate the acf. Default is 10*log10(N/m) 
 #' where N is the number of observations and m the number of series. 
@@ -288,15 +258,9 @@ ts_acf <- function(ts.obj, lag.max = NULL, ci = 0.95, color = NULL) {
   }
 
 
-acf_ly <- function(ts.obj, lag.max = NULL, ci = 0.95, color = NULL) {
- # .Deprecated("ts_acf")
-  print("The acf_ly function will be deprecated on the next release, please use ts_acf instead")
-  ts_acf(ts.obj, lag.max = lag.max, ci = ci, color = color)
-}
 
 #'  A Visualization Function of the PACF Estimation
-#' @export pacf_ly ts_pacf
-#' @aliases pacf_ly
+#' @export ts_pacf
 #' @param ts.obj a univariate or multivariate time series object of class "ts", "mts", "zoo" or "xts"
 #' @param lag.max maximum lag at which to calculate the acf. Default is 10*log10(N/m) 
 #' where N is the number of observations and m the number of series. 
@@ -432,10 +396,130 @@ ts_pacf <- function(ts.obj, lag.max = NULL, ci = 0.95, color = NULL) {
   }
   
   return(p)
-  }
-
-pacf_ly <- function(ts.obj, lag.max = NULL, ci = 0.95, color = NULL) {
-  # .Deprecated("ts_pacf")
-  print("The pacf_ly function will be deprecated on the next release, please use ts_pacf instead")
-  ts_acf(ts.obj, lag.max = lag.max, ci = ci, color = color)
 }
+
+#'  Visualization of the Decompose of a Time Series Object
+#' @export
+#' @param ts.obj a univariate time series object of a class "ts", "zoo" or "xts"
+#' @param type Set the type of the seasonal component, can be set to either "additive",  "multiplicative" or "both" to compare between the first two options (default set to “additive”)
+#' @param showline Logic, add a separation line between each of the plot components (default set to TRUE)
+#' @description Interactive visualization the trend, seasonal and random components of a time series based on the decompose function from the stats package.
+#' @examples
+#' # Defualt decompose plot
+#' ts_decompose(AirPassengers)
+#' 
+#' # Remove the sepration lines between the plot components
+#' ts_decompose(AirPassengers, showline = FALSE)
+#' 
+#' # Plot side by side a decompose of additive and multiplicative series
+#' ts_decompose(AirPassengers, type = "both")
+#' 
+ts_decompose <- function(ts.obj, type = "additive", showline = TRUE){
+  
+  # Error handling
+  # Test if the object is either ts, zoo or xts
+  if(!stats::is.ts(ts.obj) & !zoo::is.zoo(ts.obj) & !xts::is.xts(ts.obj)){
+    stop("The 'ts.obj' is not a valid time series format (i.e. 'ts', 'xts', 'zoo')")
+  }
+  
+  # If the object has multiple series select the first one
+  if (stats::is.ts(ts.obj)) {
+    if (stats::is.mts(ts.obj)) {
+      warning("The \"ts.obj\" has multiple columns, only the first column will be plot")
+      ts.obj <- ts.obj[, 1]
+    }
+  } else if (xts::is.xts(ts.obj) | zoo::is.zoo(ts.obj)) {
+    if (!is.null(base::dim(ts.obj))) {
+      if (base::dim(ts.obj)[2] > 1) {
+        warning("The \"ts.obj\" has multiple columns, only the first column will be plot")
+        ts.obj <- ts.obj[, 1]
+      }
+    }
+  }
+  
+  # Test the function inputs are currect
+  if(type != "additive" & 
+     type != "multiplicative" & 
+     type != "both"){
+    warning("The value of 'type' is not valide, using the default option - 'additive'")
+    type <- "additive"
+  } 
+  
+  if(!is.logical(showline)){
+    warning("The value of 'showline' is not valide, using the default option - TRUE")
+    showline <- TRUE
+  } 
+  
+  
+  
+  `%>%` <- magrittr::`%>%`  
+  obj.name <- p <- p1 <- p2 <- NULL
+  obj.name <- base::deparse(base::substitute(ts.obj))
+  
+  # Create a sub function for the decompose process
+  decompose_sub <- function(ts.obj, type, showline, obj.name, shareY = FALSE){
+    dec <- min <- max <- p_sub <- NULL
+    
+    if(stats::is.ts(ts.obj)){
+      dec <- stats::decompose(ts.obj, type = type)
+      
+    } else if(xts::is.xts(ts.obj) | zoo::is.zoo(ts.obj)){
+      ts.obj <- stats::as.ts(ts.obj, 
+                             start = utils::head(zoo::index(ts.obj), 1), 
+                             end = utils::tail(zoo::index(ts.obj), 1))
+      
+      dec <- stats::decompose(ts.obj, type = type)
+    }
+    
+    min <- min(stats::time(ts.obj))
+    max <- max(stats::time(ts.obj))
+    
+    obs <- TSstudio::ts_plot(dec$x) %>% 
+      plotly::layout(yaxis = list(title = "Observed"),
+                     xaxis = list(range = c(min,max),
+                                  showline = showline,
+                                  showticklabels = FALSE)
+      )
+    
+    seasonal <- TSstudio::ts_plot(dec$seasonal) %>% 
+      plotly::layout(yaxis = list(title = "Seasonal"),
+                     xaxis = list(range = c(min,max),
+                                  showline = showline,
+                                  showticklabels = FALSE)
+      )
+    random <- TSstudio::ts_plot(dec$random) %>% 
+      plotly::layout(yaxis = list(title = "Random"),
+                     xaxis = list(range = c(min,max),
+                                  showline = showline)
+      )
+    
+    trend <- TSstudio::ts_plot(dec$trend) %>% 
+      plotly::layout(yaxis = list(title = "Trend"),
+                     xaxis = list(range = c(min,max),
+                                  showline = showline,
+                                  showticklabels = FALSE)
+      )
+    
+    p_sub <- plotly::subplot(obs, trend, seasonal, random, nrows = 4, shareY = shareY) %>% 
+      plotly::hide_legend() %>%
+      plotly::layout(
+        title = base::paste("Decomposition of", type, "time series -", obj.name)
+      )
+    
+    return(p_sub)
+  }
+  
+  if(type == "additive" | type == "multiplicative" ){
+    p <- decompose_sub(ts.obj = ts.obj, type = type, showline = showline, obj.name = obj.name, shareY = TRUE)
+  } else if(type == "both"){
+    p1 <- decompose_sub(ts.obj = ts.obj, type = "additive", showline = showline, obj.name = obj.name, shareY = TRUE)
+    p2 <- decompose_sub(ts.obj = ts.obj, type = "multiplicative", showline = showline, obj.name = obj.name, shareY = FALSE) %>%
+      plotly::layout(yaxis = list(showlegend = FALSE))
+    p <- plotly::subplot(p1, p2, titleY = T) %>% plotly::layout(
+      title = base::paste("Decomposition of additive and multiplicative time series -", obj.name)
+    )
+  }
+  
+  return(p)
+}
+

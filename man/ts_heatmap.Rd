@@ -4,15 +4,32 @@
 \alias{ts_heatmap}
 \title{Heatmap Plot for Time Series}
 \usage{
-ts_heatmap(ts.obj)
+ts_heatmap(ts.obj, last = NULL, wday = TRUE, color = "Blues",
+  title = NULL, padding = TRUE)
 }
 \arguments{
-\item{ts.obj}{a univariate time series object of a class "ts", "zoo" or "xts" (support only series with either monthly or quarterly frequency)}
+\item{ts.obj}{A univariate time series object of a class "ts", "zoo", "xts", and the data frame family (data.frame, data.table, tbl, tibble, etc.) with a 
+Date column and at least one numeric column. This function support time series objects with a daily, weekly, monthly and quarterly frequencies}
+
+\item{last}{An integer (optional), set a subset using only the last observations in the series}
+
+\item{wday}{An boolean, provides a weekday veiw for daily data (relevent only for objects with dates such as xts, zoo, data.frame, etc.)}
+
+\item{color}{A character, setting the color palette of the heatmap. 
+Corresponding to any of the RColorBrewer palette or any other arguments of the \code{\link[scales]{col_numeric}} function. 
+By default using the "Blues" palette}
+
+\item{title}{A character (optional), set the plot title}
+
+\item{padding}{A boolean, if TRUE will add to the heatmap spaces between the observations}
 }
 \description{
-Heatmap plot for time series object by it periodicity (currently support only monthly and quarterly frequency)
+Heatmap plot for time series object by it periodicity (currently support only daily, weekly, monthly and quarterly frequencies)
 }
 \examples{
 data(USgas)
-ts_heatmap(USgas) 
+ts_heatmap(USgas)
+
+# Show only the last 4 years
+ts_heatmap(USgas, last = 4 *12)   
 }
