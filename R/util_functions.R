@@ -599,3 +599,123 @@ ts_info <- function(ts.obj){
                         "Start time:", info$start, "\n",
                         "End time:", info$end, "\n"))
 }
+
+#'  Transform Time Series Object to Prophet input
+#' @export
+#' @param ts.obj A univariate time series object of a class "ts", "zoo", "xts", with a daily, weekly, monthly , quarterly or yearly frequency 
+#' @param start A date object (optional), if the starting date of the series is known. Otherwise, the date would be derive from the series index
+#' @description Transform a time series object to Prophet data frame input format
+#' @return A data frame object
+#' @examples
+#' 
+#' data(USgas)
+#' 
+#' ts_to_prophet(ts.obj = USgas)
+#' 
+#' # If known setting the start date of the input object
+#' 
+#' ts_to_prophet(ts.obj = USgas, start = as.Date("2000-01-01"))
+#' 
+
+ts_to_prophet <- function(ts.obj, start = NULL){
+  `%>%` <- magrittr::`%>%`  
+  if(xts::is.xts(ts.obj) | zoo::is.zoo(ts.obj)){
+    if(base::is.null(start) || !lubridate::is.Date(start)){
+      # Setting the start date
+      if(lubridate::is.Date(zoo::index(ts.obj))){
+        start <- zoo::index(ts.obj)[1]
+      } else if(class(zoo::index(ts.obj)) == "yearmon"){
+        start <- paste(base::substr(zoo::index(ts.obj)[1], 5, 8), 
+                       substr(zoo::index(ts.obj)[1], 1, 3) %>% match(month.abb), 
+                       "01", sep = "-") %>% base::as.Date()
+      } else if(class(zoo::index(ts.obj)) == "yearqtr") {
+        start <- zoo::index(ts.obj[1]) %>% zoo::as.Date.yearqtr()
+      } else {
+        stop("The index type is invalid, supporting only Date, yearmon and yearqtr objects")
+      }
+    } 
+      # Checking the frequency of the series
+      if(xts::periodicity(ts.obj)$scale == "yearly"){
+        df <- base::data.frame(ds = base::seq.Date(from = start, 
+                                                   by = "year", 
+                                                   length.out = base::length(ts.obj)), 
+                               y = base::as.numeric(ts.obj))
+      } else if(xts::periodicity(ts.obj)$scale == "quarterly"){
+        df <- base::data.frame(ds = base::seq.Date(from = start, 
+                                                   by = "quarter", 
+                                                   length.out = base::length(ts.obj)), 
+                               y = base::as.numeric(ts.obj))
+      } else if(xts::periodicity(ts.obj)$scale == "monthly"){
+        df <- base::data.frame(ds = base::seq.Date(from = start, 
+                                                   by = "month", 
+                                                   length.out = base::length(ts.obj)), 
+                               y = base::as.numeric(ts.obj))
+      } else if(xts::periodicity(ts.obj)$scale == "weekly"){
+        df <- base::data.frame(ds = base::seq.Date(from = start, 
+                                                   by = "week", 
+                                                   length.out = base::length(ts.obj)), 
+                               y = base::as.numeric(ts.obj))
+      } else if(xts::periodicity(ts.obj)$scale == "daily"){
+        df <- base::data.frame(ds = base::seq.Date(from = start, 
+                                                   by = "day", 
+                                                   length.out = base::length(ts.obj)), 
+                               y = base::as.numeric(ts.obj))
+      } else {
+        stop("The frequency type is invalid")
+      }
+    # If time series object
+  } else if(stats::is.ts(ts.obj)){
+  
+  if(!base::is.null(start) && lubridate::is.Date(start)){
+    if(stats::frequency(ts.obj) == 1){
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "year", length.out = base::length(ts.obj)), 
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 4){
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "quarter", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 12){
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "month", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 52 | 
+              stats::frequency(ts.obj) == 365.25 / 7 | 
+              stats::frequency(ts.obj) == 365 / 7){
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "week", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 365 | 
+              stats::frequency(ts.obj) == 365.25){
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "days", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    }
+  } else {
+    if(stats::frequency(ts.obj) == 1){
+      start <- lubridate::ymd(base::paste(stats::start(ts.obj)[1], "01-01", sep = "-"))
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "year", length.out = base::length(ts.obj)), 
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 4){
+      start <- lubridate::ymd(base::paste(stats::start(ts.obj)[1], (stats::start(ts.obj)[2] * 3 -2), "01", sep = "-"))
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "quarter", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 12){
+      start <- lubridate::ymd(base::paste(stats::start(ts.obj)[1], stats::start(ts.obj)[2] , "01", sep = "-"))
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "month", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 52 | 
+              stats::frequency(ts.obj) == 365.25 / 7 | 
+              stats::frequency(ts.obj) == 365 / 7){
+      start <- base::as.Date(stats::start(ts.obj)[2] * 7, 
+                             origin = base::as.Date(base::paste(stats::start(ts.obj)[1], "-01-01", sep = "")))
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "week", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    } else if(stats::frequency(ts.obj) == 365 | 
+              stats::frequency(ts.obj) == 365.25){
+      start <- base::as.Date(stats::start(ts.obj)[2] - 1, 
+                             origin = base::as.Date(base::paste(stats::start(ts.obj)[1], "-01-01", sep = "")))
+      df <- base::data.frame(ds = base::seq.Date(from = start, by = "days", length.out = base::length(ts.obj)),
+                             y = base::as.numeric(ts.obj))
+    }
+  }
+  }
+  
+  return(df)
+  
+}

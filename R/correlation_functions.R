@@ -4,11 +4,12 @@
 #' @param lags An integer, set the lags range, by default will plot the first 12 lags
 #' @param Xshare Plotly parameter, should the x-axis be shared amongst the subplots?
 #' @param Yshare Plotly parameter, should the y-axis be shared amongst the subplots?
-#' @param margin Plotly parameter, either a single value or four values (all between 0 and 1). 
-#' If four values are provided, the first is used as the left margin, 
-#' the second is used as the right margin, the third is used as the top margin, 
-#' and the fourth is used as the bottom margin. 
-#' If a single value is provided, it will be used as all four margins.
+#' @param margin Plotly parameter, either a single value or four values (all between 0 and 1).  
+#' If four values provided, the first will be used as the left margin, 
+#' the second will be used as the right margin, 
+#' the third will be used as the top margin, 
+#' and the fourth will be used as the bottom margin. 
+#' If a single value provided, it will be used as all four margins.
 #' @param n_plots An integer, define the number of plots per row
 #' @description Visualization of series with its lags, 
 #' can be used to identify a correlation between the series and it lags
@@ -104,7 +105,7 @@ ts_lags <- function(ts.obj, lags = 1:12, margin = 0.02,
       )
   })
   
-  p <- base::suppressWarnings(plotly::subplot(p_list, nrows = ceiling(length(p_list) / n_plots), 
+  p <- base::suppressWarnings(plotly::subplot(p_list, nrows = base::ceiling(base::length(p_list) / n_plots), 
                        margin = margin, 
                        shareX = Xshare, shareY = Yshare) %>%
     plotly::layout(title = paste(obj.name, "- Series (Y axis) vs. Lags (X axis)", sep = " ")) %>%
@@ -523,3 +524,154 @@ ts_decompose <- function(ts.obj, type = "additive", showline = TRUE){
   return(p)
 }
 
+
+#'  Time Series Cross Correlation Lags Visualization
+#' @export
+#' @param x A univariate time series object of a class "ts"
+#' @param y A univariate time series object of a class "ts"
+#' @param lags An integer, set the lags range, 
+#' by default will plot the two series along with the first 12 lags  
+#' @param Xshare Plotly parameter, should the x-axis be shared amongst the subplots?
+#' @param Yshare Plotly parameter, should the y-axis be shared amongst the subplots?
+#' @param margin Plotly parameter, either a single value or four values (all between 0 and 1).  
+#' If four values provided, the first will be used as the left margin, 
+#' the second will be used as the right margin, 
+#' the third will be used as the top margin, 
+#' and the fourth will be used as the bottom margin. 
+#' If a single value provided, it will be used as all four margins.
+#' @param n_plots An integer, define the number of plots per row
+#' @param title A character, optional, set the plot title 
+#' @description Visualize the series y against the series x lags (according to the setting of the lags argument) 
+#' and return the corresponding cross-correlation value for each lag
+#' @return Plot
+#' @examples
+#' 
+#' data("USUnRate")
+#' data("USVSales")
+#' 
+#' ccf_plot(x = USVSales, y = USUnRate)
+#' 
+#' #Plotting the first 6 lead and lags of the USVSales with the USUnRate
+#' ccf_plot(x = USVSales, y = USUnRate, lags = -6:6)
+#' 
+#' # Setting the plot margin and number of plots in each raw
+#' ccf_plot(x = USVSales, y = USUnRate, lags = c(0, 6, 12, 24), 
+#' margin = 0.01,  n_plots = 2)
+
+
+ccf_plot <- function(x, y, 
+                     lags = 0:12, 
+                     margin = 0.02,
+                     n_plots = 3,
+                     Xshare = TRUE, 
+                     Yshare = TRUE,
+                     title = NULL){
+  x.name <- y.name <- x_sub <- y_sub <- c <- ccf_df <- z <- ts_inter <- lags_plot <- NULL
+  
+  `%>%` <- magrittr::`%>%`
+  x.name <- base::deparse(base::substitute(x))
+  y.name <- base::deparse(base::substitute(y))
+  # --------------Error handling --------------
+  if(!base::is.null(title)){
+    if(!base::is.character(title)){
+      warning("The value of the 'title' is not valid, using default")
+      title <- base::paste(y.name, 
+                           "(Y axis) vs. the Lags of", 
+                           x.name,
+                           sep = " ")
+    } 
+  } else {
+    title <- base::paste(y.name, 
+                         "(Y axis) vs. the Lags of", 
+                         x.name,
+                         sep = " ")
+  }
+  
+  if(!is.numeric(margin)){
+    warning("The 'margin' parameter is not valid, using the defualt setting (margin = 0.2)")
+    margin <- 0.2
+  }
+  
+  if(!is.logical(Xshare)){
+    warning("The 'Xshare' parameter is not valid, please use only boolean operators.",
+            " Using the defualt setting setting (Xshare = TRUE")
+    Xshare <- TRUE
+  }
+  if(!is.logical(Yshare)){
+    warning("The 'Yshare' parameter is not valid, please use only boolean operators.",
+            " Using the defualt setting setting (Yshare = TRUE")
+    Yshare <- TRUE
+  }
+  
+  if(!base::is.numeric(lags)){
+    stop("The value of the 'lags' argument is not valid")
+  } else if(base::any(lags %% 1 != 0)){
+    stop("The value of the 'lags' argument is not integer")
+  }
+  if(!stats::is.ts(x)){
+    stop("The 'x' argument is not a ts object")
+  } else if(!stats::is.ts(y)){
+    stop("The 'y' argument is not a ts object")
+  } else if(stats::is.mts(x) || stats::is.mts(y)){
+    stop("Cannot handel mts objects, please use only ts objects as an input")
+  } else if(stats::frequency(x) != stats::frequency(y)){
+    stop("Cannon handle series with different frequencies")
+  }
+  
+  z <- stats::ts.intersect(x,y)
+  if(base::is.null(z)){
+    stop("There is no overlapping between the two inputs")
+  }
+  x_sub <- stats::window(x, start = stats::start(z), end = stats::end(z))
+  y_sub <- stats::window(y, start = stats::start(z), end = stats::end(z))
+  
+  c <- stats::ccf(x = x_sub, y = y_sub,lag.max = max(lags), plot = FALSE)
+  
+  ccf_df <- base::data.frame(lag = (max(lags)):(-max(lags)) , acf = c$acf)
+  
+  
+  output <- lapply(lags, function(i){
+    ts_inter <- NULL
+    if(i == 0){
+      
+      p <- plotly::plot_ly(x = x_sub, 
+                           y = y_sub,
+                           type = "scatter",
+                           mode = "markers")
+    } else {
+      ts_inter <- stats::ts.intersect(y_sub, stats::lag(x_sub, -i)) %>% as.data.frame()
+      base::colnames(ts_inter) <- c("y_sub", "x_sub_lag")
+      
+      p <- plotly::plot_ly(x = ts_inter$x_sub_lag, 
+                           y = ts_inter$y_sub, 
+                           type = "scatter",
+                           mode = "markers")
+    }
+    p <-  p %>% plotly::layout(xaxis = list(title = "",
+                                            range = c( base::min(stats::na.omit(x)) * 0.95,  
+                                                       base::max(stats::na.omit(x))) * 1.05),
+                               yaxis = list(range = c( base::min(stats::na.omit(y) * 0.95),  
+                                                       base::max(stats::na.omit(y))) * 1.05),
+                               
+                               annotations = list(text = base::paste("Lag", i,
+                                                                     base::paste("(",
+                                                                                 base::round(ccf_df$acf[which(ccf_df$lag == i)], 3),
+                                                                                 ")", sep = ""),
+                                                                     sep = " "), 
+                                                  xref = "paper", yref = "paper", yanchor = "bottom", 
+                                                  xanchor = "center", align = "center", 
+                                                  x = 0.5, y = 0.9, showarrow = FALSE)
+    )
+    return(p)
+  })
+  
+  lags_plot <- plotly::subplot(output, 
+                               nrows = base::length(output) %/% n_plots, 
+                               margin = margin, 
+                               shareX = Xshare, 
+                               shareY = Yshare) %>% 
+    plotly::layout(title = title) %>%
+    plotly::hide_legend()
+  
+  return(lags_plot)
+}
