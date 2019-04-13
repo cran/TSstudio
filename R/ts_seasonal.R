@@ -20,7 +20,7 @@
 #' @param palette_normal A character, the color palette to be used when the "normal" plot is being selected 
 #' (by setting the type to "normal" or "all"). 
 #' All the palettes in the RColorBrewer and viridis packages are available to be used, the
-#' default palette is "Spectral" from the RColorBrewer package
+#' default palette is "viridis" from the RColorBrewer package
 #' @description Visualize time series object by it periodicity, currently support time series with daily, monthly and quarterly frequency
 #' @examples
 #' data(USgas)
@@ -42,7 +42,7 @@ ts_seasonal <- function(ts.obj,
                         Xgrid = TRUE, 
                         last = NULL,
                         palette = "Set1",
-                        palette_normal = "Spectral") {
+                        palette_normal = "viridis") {
   
   `%>%` <- magrittr::`%>%`
   df <- freq <- obj.name <- brewer_palettes <- viridis_palettes <- palette_type <- NULL
@@ -320,13 +320,14 @@ ts_seasonal <- function(ts.obj,
   }
   
   if(type == "box" | type == "all"){
-    minor <- base::unique(df$minor)
+    minor <- base::levels(df$minor)
     p_box <- plotly::plot_ly()
     c <- NULL
     c <- 1
     for(i in minor){
       p_box <- p_box %>% plotly::add_trace(data = df %>% dplyr::filter(minor == i), y = ~ y,  type = "box", 
-                                           line = list(color = colors_list[c]), 
+                                           line = list(color = colors_list[c]),
+                                           marker = list(color = colors_list[c]),
                                            boxpoints = "all",
                                            jitter = 0.3,
                                            pointpos = -1.8, 

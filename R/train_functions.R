@@ -736,6 +736,580 @@ ts_backtesting <- function(ts.obj,
     print(final_plot)
   }
   print(leaderboard)
+  class(modelOutput) <- "ts_backtest"
   return(modelOutput)
 }
 
+
+#' Tuning Time Series Forecasting Models Parameters with Grid Search 
+#' @export ts_grid
+#' @param ts.obj A univariate time series object of a class "ts"
+#' @param model A string, defines the model
+#' @param optim A string, set the optimization method - c("MAPE", "RMSE")
+#' @param periods A string, set the number backtesting periods
+#' @param window_length An integer, defines the length of the backtesting training window.
+#' If set to NULL (default) will use an expending window starting the from the first observation,
+#'  otherwise will use a sliding window.
+#' @param window_space An integer, set the space length between each of the backtesting training partition 
+#' @param window_test An integer, set the length of the backtesting testing partition
+#' @param hyper_params A list, defines the tuning parameters and their range
+#' @param parallel Logical, if TRUE use multiple cores in parallel
+#' @param n.cores Set the number of cores to use if the parallel argument is set to TRUE. 
+#' @description Tuning time series models with grid search approach using backtesting method.
+#'  If set to "auto" (default), will use all available cores in the system minus 1
+#' @return A list
+#' @examples 
+#' \dontrun{
+#'  data(USgas)
+#'  
+#'  # Starting with a shallow search (sequence between 0 and 1 with jumps of 0.1)
+#'  # To speed up the process, will set the parallel option to TRUE 
+#'  # to run the search in parallel using 8 cores
+#'  
+#'  hw_grid_shallow <- ts_grid(ts.obj = USgas,
+#'                             periods = 6,
+#'                             model = "HoltWinters",
+#'                             optim = "MAPE",
+#'                             window_space = 6,
+#'                             window_test = 12,
+#'                             hyper_params = list(alpha = seq(0.01, 1,0.1),
+#'                                                 beta =  seq(0.01, 1,0.1),
+#'                                                 gamma = seq(0.01, 1,0.1)),
+#'                             parallel = TRUE,
+#'                             n.cores = 8)
+#'  
+#'  
+#'  # Use the parameter range of the top 20 models 
+#'  # to set a narrow but more agressive search
+#'  
+#'  a_min <- min(hw_grid_shallow$grid_df$alpha[1:20])
+#'  a_max <- max(hw_grid_shallow$grid_df$alpha[1:20])
+#'  
+#'  b_min <- min(hw_grid_shallow$grid_df$beta[1:20])
+#'  b_max <- max(hw_grid_shallow$grid_df$beta[1:20])
+#'  
+#'  g_min <- min(hw_grid_shallow$grid_df$gamma[1:20])
+#'  g_max <- max(hw_grid_shallow$grid_df$gamma[1:20])
+#'  
+#'  hw_grid_second <- ts_grid(ts.obj = USgas,
+#'                            periods = 6,
+#'                            model = "HoltWinters",
+#'                            optim = "MAPE",
+#'                            window_space = 6,
+#'                            window_test = 12,
+#'                            hyper_params = list(alpha = seq(a_min, a_max,0.05),
+#'                                                beta =  seq(b_min, b_max,0.05),
+#'                                                gamma = seq(g_min, g_max,0.05)),
+#'                            parallel = TRUE,
+#'                            n.cores = 8)
+#'  
+#'  md <- HoltWinters(USgas, 
+#'                    alpha = hw_grid_second$alpha,
+#'                    beta = hw_grid_second$beta,
+#'                    gamma = hw_grid_second$gamma)
+#'  
+#'  library(forecast)
+#'  
+#'  fc <- forecast(md, h = 60)
+#'  
+#'  plot_forecast(fc)
+#' 
+#' }  
+  
+
+ts_grid <- function(ts.obj, 
+                   model,
+                   optim = "MAPE",
+                   periods,
+                   window_length = NULL, 
+                   window_space,
+                   window_test,
+                   hyper_params,
+                   parallel = TRUE,
+                   n.cores = "auto"){
+  
+  error <- period <- start_time <- NULL
+  
+  `%>%` <- magrittr::`%>%` 
+  
+  # Error handling
+  if(!stats::is.ts(ts.obj)){
+    stop("The input object is not 'ts' object")
+  } else if(stats::is.mts(ts.obj)){
+    stop("The input object is 'mts' object, please use 'ts'")
+  }
+  
+  if(!optim %in% c("MAPE", "RMSE") || base::length(optim) != 1){
+    warning("The value of the optim argument is not valid, using default option (MAPE)")
+    optim <- "MAPE"
+  }
+  if(!base::is.logical(parallel)){
+    warning("The 'parallel' argument is not a boolean operator, setting it to TRUE")
+    parallel <- TRUE
+  }
+  
+  if(n.cores != "auto"){
+    if(!base::is.numeric(n.cores)){
+      warning("The value of the 'n.cores' argument is not valid,", 
+              " setting it to 'auto' mode")
+      n.cores <- "auto"
+    } else if(base::is.numeric(n.cores) && 
+              (n.cores %% 1 != 0 || n.cores < 1)){
+      warning("The value of the 'n.cores' argument is not valid,", 
+              " setting it to 'auto' mode")
+      n.cores <- "auto"
+    } else{
+      if(future::availableCores() < n.cores){
+        warning("The value of the 'n.cores' argument is not valid,", 
+                "(the requested number of cores are greater than available)",
+                ", setting it to 'auto' mode")
+        n.cores <- "auto"
+      }
+    }
+  }
+  
+  if(n.cores == "auto"){
+    n.cores <- base::as.numeric(future::availableCores() - 1)
+  }
+  
+  if(!base::exists("model")){
+    stop("The 'model' argument is missing")
+  } else if(!model %in% c("HoltWinters")){
+    stop("The 'model' argument is not valid")
+  }
+  
+  # Set the backtesting partitions
+  s <- length(ts.obj) - window_space * (periods - 1) # the length of the first partition
+  e <- length(ts.obj)  # the end of the backtesting partition
+  w_end <- seq(from = s, by = window_space, to = e) # Set the cutting points for the backtesting partions
+  
+  if(!base::is.null(window_length)){
+    w_start <- w_end - window_test - window_length + 1
+  } else {
+    w_start <- base::rep(1, base::length(w_end))
+  }
+  
+  
+  if(model == "HoltWinters"){
+    hw_par <- hyper_input <- hyper_null <- hyper_false <- NULL
+    hw_par <- c("alpha", "beta", "gamma")
+    if(!base::all(base::names(hyper_params) %in% hw_par)){
+      stop("The 'hyper_params' argument is invalid")
+    }
+    
+    if("alpha" %in% base::names(hyper_params)){
+      alpha <- NULL
+      if(is.null(hyper_params$alpha)){
+        hyper_null <- c(hyper_null, "alpha")
+      } else if(base::is.logical(hyper_params$alpha)){
+        stop("The value of the 'alpha' argument cannot be only numeric")
+      } else { 
+        if(base::any(which(hyper_params$alpha < 0)) || 
+                base::any(which(hyper_params$alpha > 1))){
+        stop("The value of the 'alpha' parameter is out of range,",
+             " cannot exceed 1 or be less or equal to 0")
+      } 
+        if(any(which(hyper_params$alpha == 0))){
+        hyper_params$alpha[base::which(hyper_params$alpha == 0)] <- 1e-5
+        warning("The value of the 'alpha' parameter cannot be equal to 0",
+                " replacing 0 with 1e-5")
+        }
+        
+        alpha <- hyper_params$alpha
+        hyper_input <- c(hyper_input, "alpha")
+      }
+    }
+    
+    if("beta" %in% base::names(hyper_params)){
+      beta <- NULL
+      if(is.null(hyper_params$beta)){
+        hyper_null <- c(hyper_null, "beta")
+      } else if(base::is.logical(hyper_params$beta) && 
+                !base::isTRUE(hyper_params$beta)){
+        beta <- FALSE
+        hyper_false <- c(hyper_false, "beta")
+      } else { 
+        if(base::any(which(hyper_params$beta < 0)) || 
+           base::any(which(hyper_params$beta > 1))){
+          stop("The value of the 'beta' parameter is out of range,",
+               " cannot exceed 1 or be less or equal to 0")
+        } 
+        if(any(which(hyper_params$beta == 0))){
+          hyper_params$beta[base::which(hyper_params$beta == 0)] <- 1e-5
+          warning("The value of the 'beta' parameter cannot be equal to 0",
+                  " replacing 0 with 1e-5")
+        }
+        
+        beta <- hyper_params$beta
+        hyper_input <- c(hyper_input, "beta")
+      }
+    }
+    
+    if("gamma" %in% base::names(hyper_params)){
+      gamma <- NULL
+      if(is.null(hyper_params$gamma)){
+        hyper_null <- c(hyper_null, "gamma")
+      } else if(base::is.logical(hyper_params$gamma) && 
+                !base::isTRUE(hyper_params$gamma)){
+        gamma <- FALSE
+        hyper_false <- c(hyper_false, "beta")
+      } else { 
+        if(base::any(which(hyper_params$gamma < 0)) || 
+           base::any(which(hyper_params$gamma > 1))){
+          stop("The value of the 'gamma' parameter is out of range,",
+               " cannot exceed 1 or be less or equal to 0")
+        } 
+        if(any(which(hyper_params$gamma == 0))){
+          hyper_params$gamma[base::which(hyper_params$gamma == 0)] <- 1e-5
+          warning("The value of the 'gamma' parameter cannot be equal to 0",
+                  " replacing 0 with 1e-5")
+        }
+        
+        gamma <- hyper_params$gamma
+        hyper_input <- c(hyper_input, "gamma")
+      }
+    }
+    
+    
+    
+    grid_df <- base::eval(
+      base::parse(text = base::paste("base::expand.grid(", 
+                                     base::paste(hyper_input, collapse = ", "),
+                                     ")", 
+                                     sep = "")))
+    base::names(grid_df) <- hyper_input
+    
+   if(!base::is.null(hyper_false)){
+     for(f in hyper_false){
+       grid_df[f] <- FALSE
+     }
+   }
+    
+    grid_model <- base::paste("stats::HoltWinters(x = train", sep = "")
+    for(i in hw_par){
+      if(i %in% base::names(grid_df)){
+        grid_model <- base::paste(grid_model, ", ", i, " = search_df$", i, "[i]", 
+                                  sep = "" )
+      } else {
+        grid_model <- base::paste(grid_model, ", ", i, " = NULL", sep = "")
+      }
+    }
+    grid_model <- base::paste(grid_model, ")", sep = "")
+  }
+
+  
+  grid_output <- NULL
+  if(!parallel){
+    grid_output <- base::lapply(1:periods, function(n){
+      ts_sub <- train <- test <- search_df <- NULL
+      
+      search_df <- grid_df
+      search_df$period <- n
+      search_df$error <- NA
+      ts_sub <- stats::window(ts.obj, 
+                              start = stats::time(ts.obj)[w_start[n]], 
+                              end = stats::time(ts.obj)[w_end[n]])
+      partition <- TSstudio::ts_split(ts_sub, sample.out = window_test)
+      train <- partition$train
+      test <- partition$test
+      
+      for(i in 1:nrow(search_df)){
+        md <- fc <- NULL
+        md <- base::eval(base::parse(text = grid_model))
+        fc <- forecast::forecast(md, h = window_test)
+        if(optim == "MAPE"){
+        search_df$error[i] <- forecast::accuracy(fc, test)[10]
+        } else if(optim == "RMSE"){
+          search_df$error[i] <- forecast::accuracy(fc, test)[4]
+        }
+      }
+      
+      return(search_df)
+    }) %>% 
+      dplyr::bind_rows() %>%
+      tidyr::spread(key = period, value = error)
+  } else if(parallel){
+    future::plan(future::multiprocess, workers = n.cores)  
+    start_time <- Sys.time()
+    grid_output <- future.apply::future_lapply(1:periods, function(n){
+      ts_sub <- train <- test <- search_df <- NULL
+      
+      search_df <- grid_df
+      search_df$period <- n
+      search_df$error <- NA
+      ts_sub <- stats::window(ts.obj, 
+                              start = stats::time(ts.obj)[w_start[n]], 
+                              end = stats::time(ts.obj)[w_end[n]])
+      partition <- TSstudio::ts_split(ts_sub, sample.out = window_test)
+      train <- partition$train
+      test <- partition$test
+      
+      for(i in 1:nrow(search_df)){
+        md <- fc <- NULL
+        md <- base::eval(base::parse(text = grid_model))
+        fc <- forecast::forecast(md, h = window_test)
+        if(optim == "MAPE"){
+          search_df$error[i] <- forecast::accuracy(fc, test)[10]
+        } else if(optim == "RMSE"){
+          search_df$error[i] <- forecast::accuracy(fc, test)[4]
+        }
+      }
+      
+      return(search_df)
+    }) %>% 
+      dplyr::bind_rows() %>%
+      tidyr::spread(key = period, value = error)
+  }
+  
+  col_mean <- base::which(!base::names(grid_output)  %in% base::names(hyper_params) )
+  grid_output$mean <- base::rowMeans(grid_output[, col_mean])
+  grid_output <- grid_output %>% dplyr::arrange(mean)
+  
+  final_output <- list(grid_df = grid_output)
+  
+  for(i in base::names(hyper_params)){
+    final_output[[i]] <- grid_output[1, i]
+  }
+  final_output[["parameters"]] <- list(series = ts.obj, 
+                                       model = model,
+                                       optim = optim,
+                                       periods = periods,
+                                       window_length = window_length, 
+                                       window_space = window_space,
+                                       window_test = window_test,
+                                       hyper_params = hyper_params,
+                                       parallel = parallel,
+                                       n.cores = n.cores)
+  
+  base::class(final_output) <- "ts_grid" 
+  return(final_output)
+}
+
+#' Visualizing Grid Search Results
+#' @export plot_grid
+#' @param grid.obj A ts_grid output object
+#' @param top An integer, set the number of hyper-parameters combinations to visualize 
+#' (ordered by accuracy). If set to NULL (default), will plot the top 100 combinations
+#' @param type The plot type, either "3D" for 3D plot or 
+#' "parcoords" for parallel coordinates plot. 
+#' Note: the 3D plot option is applicable whenever there are three tuning parameters, 
+#' otherwise will use a 2D plot for two tuning parameters. 
+#' @param highlight A proportion between 0 (excluding) and 1, 
+#' set the number of hyper-parameters combinations to highlight 
+#' (by accuracy), if the type argument is set to "parcoords" 
+#' @param colors A list of plotly arguments for the color scale setting: 
+#' 
+#' showscale -  display the color scale if set to TRUE. 
+#' 
+#' reversescale - reverse the color scale if set to TRUE 
+#' 
+#' colorscale set the color scale of the plot, possible palettes are:
+#' Greys, YlGnBu,  Greens , YlOrRd,
+#' Bluered, RdBu, Reds, Blues, Picnic,
+#' Rainbow, Portland, Jet, Hot, Blackbody,
+#' Earth, Electric, Viridis, Cividis
+
+
+
+plot_grid <- function(grid.obj, 
+                      top = NULL, 
+                      highlight = 0.1, 
+                      type = "parcoords", 
+                      colors = list(showscale = TRUE,
+                                    reversescale = FALSE,
+                                    colorscale = "Jet")){
+  
+  # Setting the pipe operator
+  `%>%` <- magrittr::`%>%`
+  
+  # Setting variables
+  color_option <- p <- par_names <- sizeref <- NULL
+  
+  # List of optional color scale
+  color_option <- c("Greys","YlGnBu", "Greens", "YlOrRd",
+                    "Bluered", "RdBu", "Reds", "Blues", "Picnic",
+                    "Rainbow", "Portland", "Jet", "Hot", "Blackbody",
+                    "Earth", "Electric", "Viridis", "Cividis")
+  
+  
+  # Error handling
+  if(class(grid.obj) != "ts_grid"){
+    stop("The input object is not a 'ts_grid' class")
+  }
+  
+  if(!base::is.list(colors)){
+    warning("The 'colors' argument is not valid, using default option")
+    colors = base::list(showscale = TRUE,
+                        reversescale = FALSE,
+                        colorscale = "Jet")
+  } else if(!all(base::names(colors) %in% c("showscale", "reversescale", "colorscale"))){
+    warning("The 'colors' argument is not valid, using default option")
+    colors = base::list(showscale = TRUE,
+                        reversescale = FALSE,
+                        colorscale = "Jet")
+  } 
+  
+  if(!base::is.logical(colors$showscale)){
+    warning("The 'showscale' parameter of the 'colors' argument is not logical, using default option (TRUE)")
+    colors$showscale <- TRUE
+  }
+  
+  if(!base::is.logical(colors$reversescale)){
+    warning("The 'reversescale' parameter of the 'colors' argument is not logical, using default option (FALSE)")
+    colors$reversescale <- FALSE
+  }
+  
+  if(!base::is.character(colors$colorscale) || 
+     base::length(colors$colorscale) != 1 || 
+     !colors$colorscale %in% color_option){
+    warning("The 'colorscale' parameter of the 'colors' argument is not logical, using default option (Jet)")
+  }
+  
+  
+  if(type != "parcoords" && type != "3D"){
+    warning("The value of the 'type' argument is not valid, using default option (parcoords)")
+    type <- "parcoords"
+  }
+  
+  if(!base::is.null(top)){
+    if(!base::is.numeric(top) || top %% 1 != 0){
+      warning("The value of the 'top' argument is not valid, using default option (top 100 models)")
+      top <- ifelse(base::nrow(grid.obj$grid_df) > 100, 100, base::nrow(grid.obj$grid_df))
+    }
+    if(top > base::nrow(grid.obj$grid_df)){
+      warning("The value of the 'top' argument exceeding the number of models, using default option (top 100 models)")
+      top <- ifelse(base::nrow(grid.obj$grid_df) > 100, 100, base::nrow(grid.obj$grid_df))
+    }
+  } else { 
+    top <- ifelse(base::nrow(grid.obj$grid_df) > 100, 100, base::nrow(grid.obj$grid_df))
+  }
+  
+  if(!base::is.numeric(highlight) || highlight <= 0 || highlight > 1){
+    warning("The value of the 'highlight' argument is not valid, using default (0.1)")
+    highlight <- 0.1
+  }
+  
+  par_names <- base::names(grid.obj$parameters$hyper_params) 
+  
+  for(i in par_names){
+    if(base::is.null(grid.obj$parameters$hyper_params[[i]]) ||
+        grid.obj$parameters$hyper_params[[i]] == FALSE){
+      par_names <- par_names[-which(par_names == i)]
+    }
+  }
+  
+  
+  if(type == "parcoords"){
+    
+    if(grid.obj$parameters$model == "HoltWinters"){
+      if(base::length(par_names) < 2){
+        stop("Cannot create a parallel coordinates plot for a single hyper parameter")
+      }
+      hw_dim <- NULL
+      hw_dim <- base::list()
+      
+      for(i in base::seq_along(par_names)){
+        hw_dim[[i]] <-  base::eval(base::parse(text = base::paste("list(range = c(0,1),
+                                                                  constraintrange = c(min(grid.obj$grid_df[1:", base::ceiling(top * highlight), ", i]),
+                                                                  max(grid.obj$grid_df[1:", base::ceiling(top * highlight), ",i])),
+                                                                  label = '", par_names[i],"', values = ~", 
+                                                                  par_names[i],
+                                                                  ")",
+                                                                  sep = "")
+        ))
+      }
+      
+      p <- grid.obj$grid_df[1:top,] %>%
+        plotly::plot_ly(type = 'parcoords',
+                        line = list(color = ~ mean,
+                                    colorscale = colors$colorscale,
+                                    showscale = colors$showscale,
+                                    reversescale = colors$reversescale,
+                                    cmin = base::min(grid.obj$grid_df$mean),
+                                    cmax = base::max(grid.obj$grid_df$mean[1:top]),
+                                    colorbar=list(
+                                      title= base::paste("Avg.", grid.obj$parameters$optim, sep = " ")
+                                    )),
+                        dimensions = hw_dim
+        ) %>% plotly::layout(title = base::paste(grid.obj$parameters$model, 
+                                                 " Parameters Grid Search Results (Avg. ",
+                                                 grid.obj$parameters$optim,
+                                                 ") for Top ", 
+                                                 top, 
+                                                 " Models", sep = ""),
+                             xaxis = list(title = base::paste("Testing Over", grid.obj$parameters$periods, "Periods", sep = " ")))
+      
+      
+    }
+  }else if(type == "3D"){
+    if(grid.obj$parameters$model == "HoltWinters"){
+      if(base::length(par_names) == 3){
+        p <- plotly::plot_ly(data = grid.obj$grid_df[1:top,],
+                             type="scatter3d",
+                             mode = "markers",
+                             x = ~ alpha, 
+                             y = ~ beta, 
+                             z = ~ gamma,
+                             hoverinfo = 'text',
+                             text = paste(base::paste("Avg.", grid.obj$parameters$optim, sep = " "),
+                                          ": ", base::round(grid.obj$grid_df[1:top, "mean"], 2), 
+                                          "<br>", par_names[1],": ", grid.obj$grid_df[1:top, par_names[1]],
+                                          "<br>", par_names[2],": ", grid.obj$grid_df[1:top, par_names[2]],
+                                          "<br>", par_names[3],": ", grid.obj$grid_df[1:top, par_names[3]],
+                                          sep = ""),
+                             marker = list(color = ~ mean, 
+                                           colorscale = colors$colorscale,
+                                           showscale = colors$showscale,
+                                           reversescale = colors$reversescale,
+                                           colorbar=list(
+                                             title= base::paste("Avg.", grid.obj$parameters$optim, sep = " ")
+                                           ))) %>% 
+          plotly::layout(title = base::paste(grid.obj$parameters$model, 
+                                             " Parameters Grid Search Results (Avg. ",
+                                             grid.obj$parameters$optim,
+                                             ") for Top ", 
+                                             top, 
+                                             " Models", sep = ""),
+                         xaxis = list(title = base::paste("Testing Over", grid.obj$parameters$periods, "Periods", sep = " ")))
+      } else if(base::length(par_names) == 2){
+        warning("Cannot create a 3D plot for two hyper parameters")
+        # Scaling the bubbles size
+        sizeref <- 2.0 * max(grid.obj$grid_df$mean[1:top]) / (20**2)
+        
+        p <- plotly::plot_ly(x = grid.obj$grid_df[1:top, par_names[1]],
+                             y = grid.obj$grid_df[1:top, par_names[2]],
+                             type = "scatter",
+                             mode = "markers",
+                             hoverinfo = 'text',
+                             text = paste(base::paste("Avg.", grid.obj$parameters$optim, sep = " "),
+                                          ": ", base::round(grid.obj$grid_df[1:top, "mean"], 2), 
+                                          "<br>", par_names[1],": ", grid.obj$grid_df[1:top, par_names[1]],
+                                          "<br>", par_names[2],": ", grid.obj$grid_df[1:top, par_names[2]],
+                                          sep = ""),
+                             marker = list(color = grid.obj$grid_df[1:top, "mean"],
+                                           size = grid.obj$grid_df[1:top, "mean"],
+                                           sizemode = 'area', sizeref = sizeref,
+                                           colorscale = colors$colorscale,
+                                           showscale = colors$showscale,
+                                           reversescale = colors$reversescale,
+                                           colorbar=list(
+                                             title= base::paste("Avg.", grid.obj$parameters$optim, sep = " ")
+                                           ))
+        ) %>%
+          plotly::layout(title = base::paste(grid.obj$parameters$model, 
+                                             "Parameters Grid Search Results (Avg.",
+                                             base::paste(grid.obj$parameters$optim, ")", sep = ""), 
+                                             "for Top", 
+                                             top,
+                                             "Models",
+                                             sep = " "),
+                         xaxis = list(title = par_names[1]),
+                         yaxis = list(title = par_names[2]))
+      } else if(base::length(par_names) <= 1){
+        stop("Cannot create a 3D plot for a single hyper parameter")
+      }
+    }
+  }
+  
+  return(p)
+}

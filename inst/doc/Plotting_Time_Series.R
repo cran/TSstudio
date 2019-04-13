@@ -1,5 +1,6 @@
 ## ----setup, include=FALSE------------------------------------------------
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width=8, fig.height=5)
 options(list(menu.graphics = FALSE, scipen=99, digits= 3))
 options("getSymbols.warning4.0"=FALSE)
 options("getSymbols.yahoo.warning"=FALSE)
@@ -17,18 +18,17 @@ data("USgas")
 
 ts_info(USgas)
 
-
-## ----fig.height=5, fig.width=10------------------------------------------
+## ------------------------------------------------------------------------
 ts_plot(USgas)
 
-## ----fig.height=5, fig.width=10------------------------------------------
+## ------------------------------------------------------------------------
 # Setting the plot titles
 ts_plot(USgas,
         title = "US Natural Gas Consumption",
         Xtitle = "Year",
         Ytitle = "Billion Cubic Feet")
 
-## ----fig.height=5, fig.width=10------------------------------------------
+## ------------------------------------------------------------------------
 ts_plot(USgas,
         title = "US Natural Gas Consumption",
         Xtitle = "Year",
@@ -37,7 +37,7 @@ ts_plot(USgas,
         width = 3,
         color = "green")
 
-## ----fig.height=5, fig.width=10------------------------------------------
+## ------------------------------------------------------------------------
 ts_plot(USgas,
         title = "US Natural Gas Consumption",
         Xtitle = "Year",
@@ -49,7 +49,7 @@ ts_plot(USgas,
         Ygrid = TRUE,
         slider = TRUE)
 
-## ----fig.height=5, fig.width=10, message=FALSE, warning=FALSE------------
+## ----message=FALSE, warning=FALSE----------------------------------------
 library(TSstudio)
 library(xts)
 library(zoo)
@@ -67,7 +67,7 @@ names(closing) <- c("Apple", "Facebook", "Google", "Microsoft")
 
 ts_info(closing)
 
-## ----fig.height=5, fig.width=10------------------------------------------
+## ------------------------------------------------------------------------
 # Plot each series in a sepreate (default option)
 ts_plot(closing,
         title = "Top Technology Companies Stocks Prices Since 2013", 
@@ -85,6 +85,30 @@ ts_plot(closing,
 data(US_indicators)
 str(US_indicators)
 
-## ----fig.height=5, fig.width=10------------------------------------------
+## ------------------------------------------------------------------------
 ts_plot(US_indicators)
+
+## ----message=FALSE, warning=FALSE----------------------------------------
+USgas_partition <- ts_split(ts.obj = USgas, sample.out = 12)
+
+train <- USgas_partition$train
+test <- USgas_partition$test
+
+library(forecast)
+
+md1 <- auto.arima(train)
+fc1 <- forecast(md1, h = 12)
+
+test_forecast(actual = USgas, forecast.obj = fc1, test = test)
+
+## ------------------------------------------------------------------------
+md2 <- auto.arima(USgas)
+fc2 <- forecast(md2, h = 60)
+
+plot_forecast(fc2)
+
+## ------------------------------------------------------------------------
+md2_sim <- forecast_sim(model = md2, n = 200, h = 60)
+
+md2_sim$plot
 

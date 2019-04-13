@@ -6,7 +6,7 @@
 \usage{
 ts_seasonal(ts.obj, type = "normal", title = NULL, Ygrid = TRUE,
   Xgrid = TRUE, last = NULL, palette = "Set1",
-  palette_normal = "Spectral")
+  palette_normal = "viridis")
 }
 \arguments{
 \item{ts.obj}{Input object, either a univariate time series object of a class "ts", "zoo", "xts", or a data frame object of a class
@@ -36,7 +36,7 @@ default option is "Set1" from the RColorBrewer package}
 \item{palette_normal}{A character, the color palette to be used when the "normal" plot is being selected 
 (by setting the type to "normal" or "all"). 
 All the palettes in the RColorBrewer and viridis packages are available to be used, the
-default palette is "Spectral" from the RColorBrewer package}
+default palette is "viridis" from the RColorBrewer package}
 }
 \description{
 Visualize time series object by it periodicity, currently support time series with daily, monthly and quarterly frequency

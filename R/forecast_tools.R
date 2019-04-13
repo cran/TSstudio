@@ -108,7 +108,9 @@ test_forecast <- function(actual, forecast.obj,
                       mode = "lines+markers", 
                       name = "Actual", 
                       type = "scatter",
-                      hoverinfo = "y"
+                      hoverinfo = "y",
+                      line = list(color = "#00526d"),
+                      marker = list(color = "#00526d")
     ) %>% 
     plotly::add_trace(x = time_actual, 
                       y = c(forecast.obj$fitted, 
@@ -118,6 +120,7 @@ test_forecast <- function(actual, forecast.obj,
                       name = "Fitted", 
                       type = "scatter", 
                       line = list(color = "red"),
+                      marker = list(color = "red"),
                       hoverinfo = ifelse(hover, "text", "y"),
                       text = text_fit
     ) %>% 
@@ -130,7 +133,9 @@ test_forecast <- function(actual, forecast.obj,
                       name = "Forecasted", 
                       type = "scatter",
                       hoverinfo = ifelse(hover, "text", "y"),
-                      text = text_forecast
+                      text = text_forecast,
+                      marker = list(color = "green"),
+                      line = list(color = "green")
     ) %>% 
     plotly::layout(title = base::paste(obj.name, " - Actual vs Forecasted and Fitted", sep = ""), 
                    xaxis = list(title = forecast.obj$method, showgrid = Xgrid), 
@@ -205,16 +210,14 @@ res_hist <- function(forecast.obj){
 #' That includes a time series plot of the residuals, and the plots of the  
 #' autocorrelation function (acf) and histogram of the residuals
 #' @examples
-#' \dontrun{
 #' library(forecast)
 #' data(USgas)
 #'
 #' # Create a model
-#' fit <- auto.arima(USgas, lambda = BoxCox.lambda(train))
+#' fit <- auto.arima(USgas)
 #' 
 #' # Check the residuals of the model
 #' check_res(fit)
-#'}
 
 check_res <- function(ts.model, lag.max = 36){
   `%>%` <- magrittr::`%>%`
@@ -275,3 +278,111 @@ check_res <- function(ts.model, lag.max = 36){
     )
   return(p)
 }
+
+
+#' Forecasting simulation  
+#' @export forecast_sim
+#' @param model A forecasting model supporting \code{\link[forecast]{Arima}}, \code{\link[forecast]{auto.arima}}, 
+#' \code{\link[forecast]{ets}}, and \code{\link[forecast]{nnetar}} models from the **forecast** package
+#' @param h An integer, defines the forecast horizon
+#' @param n An integer, set the number of iterations of the simulation
+#' @param sim_color Set the color of the simulation paths lines
+#' @param opacity Set the opacity level of the simulation path lines
+#' @param plot Logical, if TRUE will desplay the output plot
+#' @description Creating different forecast paths for forecast objects (when applicable), 
+#' by utilizing the underline model distribution with the \code{\link[stats]{simulate}} function
+#' @return The baseline series, the simulated values and a plot
+#' @examples
+#'  \dontrun{
+#' library(forecast)
+#' data(USgas)
+#'
+#' # Create a model
+#' fit <- auto.arima(USgas)
+#' 
+#' # Simulate 100 possible forecast path, with horizon of 60 months
+#' forecast_sim(model = fit, h = 60, n = 100)
+#' }
+
+forecast_sim <- function(model,h,n, sim_color = "blue", opacity = 0.05, plot = TRUE){
+  
+  `%>%` <- magrittr::`%>%`
+  x <- y <- NULL
+  
+  
+  # Setting variables
+  s <- s1 <- sim_output <- p <- output <- NULL
+  
+  #Error handling
+  if(!any(class(model) %in% c("ARIMA", "ets", "nnetar", "Arima"))){
+    stop("The model argument is not valid")
+  }
+  
+  if(opacity < 0 || opacity > 1){
+    stop("The value of the 'opacity' argument is invalid")
+  }
+  
+  if(!is.numeric(n)){
+    stop("The value of the 'n' argument is not valid")
+  }
+  
+  if(!is.numeric(h)){
+    stop("The value of the 'h' argument is not valid")
+  } else if(h %% 1 != 0){
+    stop("The 'h' argument is not integer")
+  } else if(h < 1){
+    stop("The value of the 'h' argument is not valid")
+  }
+  
+  if(!base::is.logical(plot)){
+    warning("The value of the 'plot' parameter is invalid, using default option TRUE")
+    plot <- TRUE
+  }
+  
+  s <- lapply(1:n, function(i){
+    sim <- sim_df <- x <- y <- NULL
+    
+    sim <- stats::simulate(model,nsim = h)
+    sim_df <- base::data.frame(x = base::as.numeric(stats::time(sim)), 
+                               y = base::as.numeric(sim))
+    sim_df$n <- base::paste0("sim_", i)
+    return(sim_df)
+  }) 
+  sim_output <- s %>% dplyr::bind_rows() %>% 
+    tidyr::spread(key = n, value = y) %>% 
+    dplyr::select(-x) %>% 
+    stats::ts(start = stats::start(stats::simulate(model,nsim = 1)), 
+       frequency = stats::frequency(stats::simulate(model,nsim = 1))) 
+  
+  p <- plotly::plot_ly()
+  
+  for(i in 1:n){
+    p <- p %>% plotly::add_lines(x = s[[i]]$x, y = s[[i]]$y, 
+                                 line = list(color = sim_color), 
+                                 opacity = opacity, showlegend = FALSE, 
+                                 name = paste("Sim", i, sep = " "))
+  }
+  s1 <- s %>% dplyr::bind_rows() %>% dplyr::group_by(x) %>%
+    dplyr::summarise(p50 = stats::median(y))
+  p <- p %>% plotly::add_lines(x = s1$x, y = s1$p50, 
+                               
+                               line = list(color = "#00526d", 
+                                           dash = "dash", 
+                                           width = 3), name = "Median") 
+  
+  p <- p %>% plotly::add_lines(x = stats::time(model$x), 
+                               y = model$x, 
+                               line = list(color = "#00526d"), 
+                               name = "Actual")
+  if(plot){
+  print(p)
+  }
+  
+  output <- list()
+  output$plot <- p
+  output$forecast_sim <- sim_output
+  output$series <- model$x
+  return(output)
+}
+
+
