@@ -1,189 +1,208 @@
 ---
 title: "Plotting Time Series Data"
-author: "Rami Krispin (@Rami_Krispin)"
-date: "2019-04-13"
 output: rmarkdown::html_vignette
 vignette: >
+  %\VignetteIndexEntry{Plotting Time Series Data}
   %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteIndexEntry{Vignette Title}
-  %\usepackage[UTF-8]{inputenc}
+  %\VignetteEncoding{UTF-8}
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE,
-                      fig.width=8, fig.height=5)
-options(list(menu.graphics = FALSE, scipen=99, digits= 3))
-options("getSymbols.warning4.0"=FALSE)
-options("getSymbols.yahoo.warning"=FALSE)
+  
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+fig.width=8, 
+fig.height=5,
+collapse = TRUE,
+comment = "#>"
+)
 ```
 
-The `ts_plot` is a versatile function for interactive plotting of time series objects. It is based on the [plotly](https://plot.ly/r/) engine and supports multiple time series objects such as `ts`, `mts`, `zoo`, `xts` and as well the data frame family (`data.frame`, `data.table`, and `tbl`).
+## The ts_plot function
 
-```{r}
-# install.packages("TSstudio")
+The plotting of time series object is most likely one of the steps of the analysis of time-series data. The \code{\link[TSstudio]{ts_plot} is a customized function for plotting time series data based on the [plotly](https://plot.ly/r/) package visualization engine. It supports the following time-series classes:
+
+* ts
+* mts
+* zoo
+* xts
+* data.frame^1^ 
+* tbl^1^ 
+
+^1^ Must have a `Date` or `POSIXct/lt` column and at least on numeric column
+
+For example let's load and plot the `USgas` series, a `ts` object:
+
+```{r setup}
 library(TSstudio)
-packageVersion("TSstudio")
-# Function documentation
-?ts_plot
 ```
 
-
-#### Plotting a univariate time series
-
-Plotting a univariate time series data with the `ts_plot` function is straightforward: 
-
-```{r }
-# Loading the USgas dataset
-data("USgas")
+```{r message=FALSE, warning=FALSE}
+data(USgas)
 
 ts_info(USgas)
-```
 
-```{r}
 ts_plot(USgas)
 ```
 
+## Customization options
 
+It is straightforward to customize the plot using the different arguments of the ts_plot function
 
-By default, the function will set the input object name as the plot title and leave the X and Y axises empty. It is possible to label the axises and set a different title:
+### Adding titles
+
+By default, the function sets the series name as the plot title. The `title` allows you to modify the plot title and the `Xtitle` and `Ytitle` enable you to add titles to the X-axis and Y-axis respectively:
 
 ```{r}
-# Setting the plot titles
 ts_plot(USgas,
-        title = "US Natural Gas Consumption",
-        Xtitle = "Year",
+        title = "US Monthly Natural Gas Consumption",
+        Xtitle = "Time",
         Ytitle = "Billion Cubic Feet")
 ```
 
-#### Line setting
+### Adding slider
 
-There are several arguments which allow modifying the line main characteristics such as the colors, width, and type of line. 
-
-The `line.mode` argument is equivalent to the `mode` argument of the `plot_ly` function, and there are 3 options:
-
-1. `line` - the default option, a clean line
-2. `line+markers` - a line with a markers
-3. `markers` - only markers
-
-The `dash` argument allows modifying the line to dashed or dotted by setting the argument to `dash` or `dot` respectively.  The line width, by default, set to 2 and can be modified with the `width` argument:
+The `slider` argument allows you to add a slider on the bottom of the plot, which will enable you to customize the window length of the plot:
 
 ```{r}
 ts_plot(USgas,
-        title = "US Natural Gas Consumption",
-        Xtitle = "Year",
+        title = "US Monthly Natural Gas Consumption",
+        Xtitle = "Time",
         Ytitle = "Billion Cubic Feet",
-        line.mode = "lines+markers",
-        width = 3,
-        color = "green")
-```
-
-In addition, we can add grid lines for the Y and X axises and slider by setting the `Xgrid`, `Ygrid` and slider arguments to TRUE:
-
-```{r }
-ts_plot(USgas,
-        title = "US Natural Gas Consumption",
-        Xtitle = "Year",
-        Ytitle = "Billion Cubic Feet",
-        line.mode = "lines+markers",
-        width = 1,
-        color = "#66C2A5",
-        Xgrid = TRUE,
-        Ygrid = TRUE,
         slider = TRUE)
 ```
 
-#### Ploting a multiple time series object
 
-The `ts_plot` can handle multiple time series objects such as `mts`, `xts`, `zoo` and data frame family objects. The example below demonstrates the plot options for a multiple time series object with the closing prices of **Apple**, **Facebook**, **Google** and **Microsoft** stocks over time:
-```{r message=FALSE, warning=FALSE}
-library(TSstudio)
-library(xts)
-library(zoo)
-library(quantmod)
-# Loading the stock price of key technology companies:
-tckrs <- c("GOOGL", "FB", "AAPL", "MSFT")
-getSymbols(tckrs, 
-           from = "2013-01-01",
-           src = "yahoo"
-           )
+### Customize the line 
 
-# Creating a multiple time series object
-closing <- cbind(AAPL$AAPL.Close, FB$FB.Close, GOOGL$GOOGL.Close, MSFT$MSFT.Close)
-names(closing) <- c("Apple", "Facebook", "Google", "Microsoft")
+The `color`, `width`  arguments allow you to customize the line's color and width of the plot:
 
-ts_info(closing)
+```{r}
+ts_plot(USgas,
+        title = "US Monthly Natural Gas Consumption",
+        Xtitle = "Time",
+        Ytitle = "Billion Cubic Feet",
+        color = "black",
+        width = 3)
 ```
 
-The `type` argument defines whatever to plot all the series in a single plot (`single` option) or plot each series separately (`multiple` option):
+The `dash` argument enables to create a dashed or dotted line (as opposed to the default setting of a solid line):
 
-```{r }
-# Plot each series in a sepreate (default option)
-ts_plot(closing,
-        title = "Top Technology Companies Stocks Prices Since 2013", 
+```{r}
+ts_plot(USgas,
+        title = "US Monthly Natural Gas Consumption",
+        Xtitle = "Time",
+        Ytitle = "Billion Cubic Feet",
+        dash = "dash")
+```
+
+The `line.mode` enables to add to the solid line markers (by setting it to `lines+markers`) or just replace the solid one with markers (by setting it to `markers`):
+
+
+```{r}
+ts_plot(USgas,
+        title = "US Monthly Natural Gas Consumption",
+        Xtitle = "Time",
+        Ytitle = "Billion Cubic Feet",
+        line.mode =  "lines+markers")
+```
+
+
+
+## Advance customization
+
+The `ts_plot` is a wraper of the **plotly** package plotting functions for time series objects, therefore, the output of the `ts_plot` is a `plotly` object:
+
+```{r}
+class(ts_plot(USgas))
+```
+
+
+Advance customization of the `ts_plot` output can be done with plotly's `layout` function. For example, let's replot the `USgas` series and customize the background to black:
+
+```{r message=FALSE, warning=FALSE}
+library(plotly)
+
+ts_plot(USgas,
+        title = "US Monthly Natural Gas Consumption",
+        Xtitle = "Time",
+        Ytitle = "Billion Cubic Feet",
+        color =  "pink",
+        Xgrid = TRUE,
+        Ygrid = TRUE) %>%
+  layout(paper_bgcolor = "black",
+         plot_bgcolor = "black",
+         font = list(color = "white"),
+         yaxis = list(linecolor = "#6b6b6b",
+                      zerolinecolor = "#6b6b6b",
+                      gridcolor= "#444444"),
+         xaxis = list(linecolor = "#6b6b6b",
+                      zerolinecolor = "#6b6b6b",
+                      gridcolor= "#444444"))
+```
+
+**Note** that the `Xgrid` and `Ygrid` arguments, when set to `TRUE`, add the corresponding X and Y grid lines.
+
+
+### Plotting multiple time series object
+
+The plotting of a multiple time series object is straightforward.  Let's load the `Coffee_Prices` an `mts` object that represents the monthly prices of the Robusta and Arabica coffee prices (USD per Kg.):
+
+```{r}
+data("Coffee_Prices")
+
+ts_info(Coffee_Prices)
+```
+
+
+```{r}
+ts_plot(Coffee_Prices)
+```
+
+By default, the function will plot all the series in one plot. Plotting the different series on a separate plot can be done by setting the `type` argument to `multiple`:
+
+```{r}
+ts_plot(Coffee_Prices,
         type = "multiple")
-
-
-# All the series in one plot
-ts_plot(closing, 
-        title = "Top Technology Companies Stocks Prices Since 2013",
-        type = "single")
-
-
 ```
 
-#### Plotting data frame objects
+**Note** that the `color`, `Ytitle`, and `Xtitle` arguments are not applicable when plotting multiple time series object.
 
-Currently, the `ts_plot` function supports three classes of data frame - `data.frame`, `data.table` and `tbl`. To be able to plot a data frame object, it must contain one column with a date or time object (`Date` or `POSIXlt`/`POSIXct`) and at least one numeric column. The **US_indicators** is an example of a `data.frame` object with time series data. It contains the monthly vehicle sales and the unemployment rate in the US since 1976 and a date object:
+## Working with other time series class
+
+Working with other types of time series classes following the execute same process as the one demonstrated with the ts object above. 
+
+The main advantage of plotting time series objects such as `xts`, `zoo`, `data.frame` and now `tsibble`, is that their index is more readable (e.g., support Date and other time classes).
+
+### Plotting zoo and xts objects
+
+Let's load the University of Michigan consumer sentiment index:
 
 ```{r}
-data(US_indicators)
-str(US_indicators)
+data("Michigan_CS")
+
+ts_info(Michigan_CS)
 ```
+
 
 ```{r}
-ts_plot(US_indicators)
+ts_plot(Michigan_CS)
 ```
 
-#### Plotting a forecast object
+### Plotting data.frame object
 
-The TSstudio package provides a set of visualizing applications for the forecasting process. Starting with visualizating the fitted and forecasted values vs. the actuals with the `test_forecast` function. In the example below, we will use the `ts_split` function to split the USgas dataset into a training and testing partitions, leaving the last 12 months as testing:
+Plotting `data.frame` or `tbl` objects must follow the following structure:
 
-```{r message=FALSE, warning=FALSE}
-USgas_partition <- ts_split(ts.obj = USgas, sample.out = 12)
+* Have a `Date` or `POSIXct/lt` column
+* At least one numeric column
 
-train <- USgas_partition$train
-test <- USgas_partition$test
-
-library(forecast)
-
-md1 <- auto.arima(train)
-fc1 <- forecast(md1, h = 12)
-
-test_forecast(actual = USgas, forecast.obj = fc1, test = test)
-```
-
-You can hover over the plot to review the MAPE and RMSE of the model over the training and testing partitions.
-
-
-In addition, the `plot_forecast` function visualize any `forecast` object from the **forecast** package or `bsts` forecast object from the **bsts** package:
+For example, let's convert the USgas series to `data.frame` with the `ts_to_prophet` function:
 
 ```{r}
-md2 <- auto.arima(USgas)
-fc2 <- forecast(md2, h = 60)
+USgas_df <- ts_to_prophet(USgas)
 
-plot_forecast(fc2)
+str(USgas_df)
+
+
+ts_plot(USgas_df)
 ```
-
-
-An alternative approach for the plot_forecast function, which provides a traditional forecast plot with confidence intervals, is to perform forecasting simulation based on the model distribution (using the simulate function) and plot it. The forecast_sim function provides this functionality. Let's take the md2, the auto.arima forecasting model, and simulate 200 forecasting path with the horizon of 60 months:
-
-```{r}
-md2_sim <- forecast_sim(model = md2, n = 200, h = 60)
-
-md2_sim$plot
-```
-
-
-
 
 

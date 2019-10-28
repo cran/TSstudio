@@ -1,3 +1,26 @@
+## Version 0.1.5 is now available on CRAN
+
+Package license
+
+* Changing the package license from GPL-3 to MIT
+
+New functions
+
+*train_model - a flexible framework for training, testing, evaluating, and forecasting models. This function provides the ability to run multiple models with backtesting or single training/testing partitions
+* plot_model - animation the performance of the train_model output on the backtesting partitions
+* plot_error - plotting the error distribution of the train_model output 
+* ts_cor - for acf and pacf plots with seasonal lags
+* arima_diag - a diagnostic plot for identify the AR, MA and differencing components of the ARIMA model
+
+Deprecated functions
+
+* ts_backtesting - will be replaced by the train_model function
+* ts_acf / ts_pacf functions - will be replaced by the ts_cor function
+
+Fix errors 
+* ts_seasonal - aligning the box plot color 
+* ts_plot - setting the dash and marker mode for multiple time series
+
 ## Version 0.1.4 is now available on CRAN
 New functions
 * forecast_sim - creating different forecast paths for forecast objects (when applicable), by utilizing the underline model distribution with the simulate function
@@ -16,7 +39,7 @@ plot_forecast - fixing a gap between the forecast values and the time (x-axis) v
 
 ## Version 0.1.2 is now available on CRAN
 New functions:
-* ts_backtesting -  a horce race of multiple forecasting models with backtestin
+* ts_backtesting -  a horce race of multiple forecasting models with backtesting
 * ts_quantile - time series quantile plot for time series data
 * ts_seasonal - supports multiple inputs and new color palattes 
 

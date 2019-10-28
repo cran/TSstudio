@@ -8,7 +8,9 @@
 #' @param dash A plotly argument, define the line style, c(NULL, "dot", "dash")
 #' @param color The color of the plot, support both name and expression
 #' @param slider Logic, add slider to modify the time axis (default set to FALSE)
-#' @param type Applicable for multiple time series object, plot on a separate plot or all together c("single, "multiple) 
+#' @param type A character, optional, if having multiple tims series object,
+#' will plot all series in one plot when set to "single" (default), 
+#' or plot each series on a separate plot when set to "multiple"
 #' @param Xtitle A character, set the X axis title, default set to NULL
 #' @param Ytitle A character, set the Y axis title, default set to NULL
 #' @param title A character, set the plot title, default set to NULL
@@ -23,7 +25,7 @@
 
 ts_plot <- function(ts.obj, line.mode = "lines", width = 2, 
                       dash = NULL, color = NULL, 
-                      slider = FALSE, type = "multiple",
+                      slider = FALSE, type = "single",
                       Xtitle = NULL, Ytitle = NULL, title = NULL,
                       Xgrid = FALSE, Ygrid = FALSE){
   `%>%` <- magrittr::`%>%`
@@ -183,14 +185,21 @@ ts_plot <- function(ts.obj, line.mode = "lines", width = 2,
          '"ts", "mts", "xts", "zoo" or data frame with date object') 
   } 
   
+  if(base::ncol(df) == 2){
+    showlegend <- FALSE
+  } else {
+    showlegend <- TRUE
+  }
   
   if(dim_flag){
     if(type == "single"){
       p <- plotly::plot_ly()
+      
       for(i in 2:ncol(df)){
-        p <- p %>% plotly::add_trace(x = df[,1], y = df[,i],
+        p <- p %>% plotly::add_lines(x = df[,1], y = df[,i],
                              name = names(df)[i],
-                             mode = "lines",
+                             mode = line.mode,
+                             line = list(dash = dash),
                              type = 'scatter')
       }
       p <- p %>% plotly::layout(
@@ -209,7 +218,8 @@ ts_plot <- function(ts.obj, line.mode = "lines", width = 2,
     } else if(type == "multiple"){
       for(i in 2:ncol(df)){
         plot_list[[i-1]] <- plotly::plot_ly(x = df[,1], y = df[,i], 
-                                    mode = "lines", 
+                                    mode = line.mode, 
+                                    line = list(dash = dash),
                                     name = names(df)[i],
                                     type = 'scatter'
         )%>% 
@@ -232,28 +242,28 @@ ts_plot <- function(ts.obj, line.mode = "lines", width = 2,
     
     p <-  switch (line.mode,
                   "markers" = {
-                    plotly::plot_ly(data = df, x = ~ date, y = ~y, 
-                            mode = "markers", 
+                    plotly::plot_ly(data = df, x = ~ date, y = ~y,
+                            mode = "markers",
                             type = 'scatter',
                             marker = list(color = color, width = width)
                     )
                   },
                   "lines+markers" = {
-                    plotly::plot_ly(data = df, x = ~ date, y = ~y, 
-                            mode = "lines+markers", 
+                    plotly::plot_ly(data = df, x = ~ date, y = ~y,
+                            mode = "lines+markers",
                             type = 'scatter',
                             marker = list(color = color),
                             line = list(width = width, dash = dash, color = color)
                     )
                   },
                   "lines" = {
-                    plotly::plot_ly(data = df, x = ~ date, y = ~y, 
-                            mode = "lines", 
+                    plotly::plot_ly(data = df, x = ~ date, y = ~y,
+                            mode = "lines",
                             type = 'scatter',
                             line = list(width = width, dash = dash, color = color)
                     )
                   }
-                  
+
     )
     
     if(!base::is.null(p) & slider){
