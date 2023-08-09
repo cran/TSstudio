@@ -157,11 +157,11 @@ ts_seasonal <- function(ts.obj,
                          minor = lubridate::quarter(zoo::index(ts.obj)), 
                          y = base::as.numeric(ts.obj[,1]))
       } 
-    } else if(class(zoo::index(ts.obj)) == "yearqtr" & xts::periodicity(ts.obj)$scale == "quarterly"){
+    } else if(inherits(zoo::index(ts.obj), "yearqtr") & xts::periodicity(ts.obj)$scale == "quarterly"){
       df <- base::data.frame(main = lubridate::year(zoo::index(ts.obj)), 
                        minor = lubridate::quarter(zoo::index(ts.obj)), 
                        y = base::as.numeric(ts.obj[,1]))
-    } else if(class(zoo::index(ts.obj)) == "yearmon" & xts::periodicity(ts.obj)$scale == "monthly"){
+    } else if(inherits(zoo::index(ts.obj), "yearmon") & xts::periodicity(ts.obj)$scale == "monthly"){
       df <- base::data.frame(main = lubridate::year(zoo::index(ts.obj)), 
                        minor = lubridate::quarter(zoo::index(ts.obj)), 
                        y = base::as.numeric(ts.obj[,1]))
@@ -232,7 +232,7 @@ ts_seasonal <- function(ts.obj,
       df_temp <- base::data.frame(date = ts.obj[, date_col], ts.obj[, numeric_col[1]])
     }
     
-    dt_temp <- dt_temp %>% dplyr::arrange(date)
+    df_temp <- df_temp %>% dplyr::arrange(date)
     
     data_diff <- NULL
     date_diff <- base::diff(as.numeric(df_temp$date))
@@ -613,12 +613,12 @@ ts_heatmap <- function(ts.obj, last = NULL, wday = TRUE, color = "Blues", title 
                          y = base::as.numeric(ts.obj[,1]))
         time_unit <- "Quarter"
       } 
-    } else if(class(zoo::index(ts.obj)) == "yearqtr" & xts::periodicity(ts.obj)$scale == "quarterly"){
+    } else if(inherits(zoo::index(ts.obj), "yearqtr") & xts::periodicity(ts.obj)$scale == "quarterly"){
       df <- base::data.frame(main = lubridate::year(zoo::index(ts.obj)), 
                        minor = lubridate::quarter(zoo::index(ts.obj)), 
                        y = base::as.numeric(ts.obj[,1]))
       time_unit <- "Quarter"
-    } else if(class(zoo::index(ts.obj)) == "yearmon" & xts::periodicity(ts.obj)$scale == "monthly"){
+    } else if(inherits(zoo::index(ts.obj), "yearmon") & xts::periodicity(ts.obj)$scale == "monthly"){
       df <- base::data.frame(main = lubridate::year(zoo::index(ts.obj)), 
                        minor = lubridate::month(zoo::index(ts.obj), label = TRUE), 
                        y = base::as.numeric(ts.obj[,1]))

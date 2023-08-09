@@ -309,14 +309,14 @@ zoo_to_ts <- function(zoo.obj){
 
 ts_split <- function(ts.obj, sample.out = NULL){
   
-  if (!stats::is.ts(ts.obj) && !tsibble::is.tsibble(ts.obj)) {
+  if (!stats::is.ts(ts.obj) && !tsibble::is_tsibble(ts.obj)) {
     stop("The 'ts.obj' is not a valid 'ts' or 'tsibble' object")
   }
   
   l <- train <- test <- split <- NULL
   if(stats::is.ts(ts.obj)){
   l <- base::length(ts.obj)
-  } else if(tsibble::is.tsibble(ts.obj)){
+  } else if(tsibble::is_tsibble(ts.obj)){
   l <- base::nrow(ts.obj)  
   }
   
@@ -341,7 +341,7 @@ ts_split <- function(ts.obj, sample.out = NULL){
     test <- stats::window(ts.obj, 
                           start = stats::time(ts.obj)[base::length(stats::time(ts.obj)) - h + 1], 
                           end = stats::time(ts.obj)[base::length(stats::time(ts.obj))])
-  )} else if(tsibble::is.tsibble(ts.obj)){
+  )} else if(tsibble::is_tsibble(ts.obj)){
     split <- base::list(train = ts.obj[1:(base::nrow(ts.obj) - h),],
                         test = ts.obj[(base::nrow(ts.obj) - h + 1):base::nrow(ts.obj), ])
   }
@@ -830,11 +830,11 @@ ts_to_prophet <- function(ts.obj, start = NULL){
       # Setting the start date
       if(lubridate::is.Date(zoo::index(ts.obj))){
         start <- zoo::index(ts.obj)[1]
-      } else if(class(zoo::index(ts.obj)) == "yearmon"){
+      } else if(inherits(zoo::index(ts.obj),"yearmon")){
         start <- paste(base::substr(zoo::index(ts.obj)[1], 5, 8), 
                        substr(zoo::index(ts.obj)[1], 1, 3) %>% match(month.abb), 
                        "01", sep = "-") %>% base::as.Date()
-      } else if(class(zoo::index(ts.obj)) == "yearqtr") {
+      } else if(inherits(zoo::index(ts.obj),"yearqtr")) {
         start <- zoo::index(ts.obj[1]) %>% zoo::as.Date.yearqtr()
       } else {
         stop("The index type is invalid, supporting only Date, yearmon and yearqtr objects")
